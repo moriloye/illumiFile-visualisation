@@ -1,63 +1,32 @@
 import React, { useState, useEffect } from "react";
+import io from "socket.io-client";
 
-const MetaAlertsDashboard = () => {
+const socket = io("http://localhost:5000"); // Backend WebSocket URL
+
+const RealtimeDashboard = () => {
   const [metaAlerts, setMetaAlerts] = useState([]);
-  const [delta, setDelta] = useState("0.5");
-  const [phase, setPhase] = useState("");
-  const [similarity, setSimilarity] = useState(0);
+  const [newAlerts, setNewAlerts] = useState(null);
 
-  // Fetch meta-alerts with filters
+  // Fetch initial data and listen for WebSocket events
   useEffect(() => {
-    const queryParams = new URLSearchParams({
-      delta,
-      ...(phase && { phase }), // Include phase only if selected
-      ...(similarity > 0 && { similarity }), // Include similarity if > 0
-    });
-    fetch(`/api/meta_alerts?${queryParams.toString()}`)
+    // Fetch initial meta-alerts
+    fetch("/api/meta_alerts?delta=0.5")
       .then((res) => res.json())
       .then((data) => setMetaAlerts(data));
-  }, [delta, phase, similarity]);
+
+    // Listen for real-time updates
+    socket.on("new_alerts", (data) => {
+      setNewAlerts(data);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   return (
     <div>
-      <h1>Meta-Alerts Dashboard</h1>
-
-      {/* Filters */}
-      <div>
-        <label>
-          Delta:
-          <select value={delta} onChange={(e) => setDelta(e.target.value)}>
-            <option value="0.5">0.5</option>
-            <option value="5">5</option>
-          </select>
-        </label>
-        <label>
-          Phase:
-          <select value={phase} onChange={(e) => setPhase(e.target.value)}>
-            <option value="">All Phases</option>
-            <option value="nmap">nmap</option>
-            <option value="nikto">nikto</option>
-            <option value="vrfy">vrfy</option>
-            <option value="hydra">hydra</option>
-            <option value="upload">upload</option>
-            <option value="exploit">exploit</option>
-          </select>
-        </label>
-        <label>
-          Similarity Threshold:
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={similarity}
-            onChange={(e) => setSimilarity(e.target.value)}
-          />
-          {similarity}
-        </label>
-      </div>
-
-      {/* Meta-Alerts Display */}
+      <h1>Real-Time Meta-Alerts Dashboard</h1>
       <ul>
         {metaAlerts.map((alert) => (
           <li key={alert.id}>
@@ -65,8 +34,16 @@ const MetaAlertsDashboard = () => {
           </li>
         ))}
       </ul>
+
+      {newAlerts && (
+        <div style={{ marginTop: "20px", padding: "10px", border: "1px solid green" }}>
+          <h2>New Alerts Received</h2>
+          <p>Delta: {newAlerts.delta}</p>
+          <p>Processed Alerts: {newAlerts.alerts}</p>
+        </div>
+      )}
     </div>
   );
 };
 
-export default MetaAlertsDashboard;
+export default RealtimeDashboard;
